@@ -822,7 +822,8 @@ class Note(_XMLNote):
 
     def __init__(self, pitch: Union[Pitch, str], duration: Union[Duration, str, float], ties: str = None,
                  notations=(), articulations=(), notehead: Union['Notehead', str] = None,
-                 directions: Sequence['Direction'] = (), stemless: bool = False, velocity: int = None):
+                 directions: Sequence['Direction'] = (), stemless: bool = False, velocity: int = None,
+                 staff: int = None):
 
         if isinstance(pitch, str):
             pitch = Pitch.from_string(pitch)
@@ -838,7 +839,8 @@ class Note(_XMLNote):
 
         assert isinstance(duration, Duration)
         super().__init__(pitch, duration, ties=ties, notations=notations, articulations=articulations,
-                         notehead=notehead, directions=directions, stemless=stemless, velocity=velocity)
+                         notehead=notehead, directions=directions, stemless=stemless, velocity=velocity,
+                         staff=staff)
 
     @property
     def starts_tie(self):
