@@ -1422,7 +1422,7 @@ class Clef(MusicXMLComponent):
     def render(self) -> Sequence[ElementTree.Element]:
         props = {}
         if self.number is not None:
-            props['number'] = self.number
+            props['number'] = str(self.number)
         clef_element = ElementTree.Element("clef", props)
         ElementTree.SubElement(clef_element, "sign").text = self.sign
         ElementTree.SubElement(clef_element, "line").text = self.line
@@ -1637,16 +1637,21 @@ class Measure(MusicXMLComponent, MusicXMLContainer):
         self.number = number
         self.time_signature = time_signature
         self.key = key
+
         assert isinstance(clef, (type(None), Clef, str, tuple, Sequence)), "Clef not understood."
         clefs = [clef] if not isinstance(clef, list) else clef
         self.clef = []
-        for c in clefs:
-            if isinstance(c, (type(None), Clef)):
-                self.clef.append(c)
-            elif isinstance(c, str):
-                self.clef.append(Clef.from_string(c))
+        for clef in clefs:
+            if clef is None:
+              continue
+            elif isinstance(clef, Clef):
+                clef = clef
+            elif isinstance(clef, str):
+                clef = Clef.from_string(clef)
             else:
-                self.clef.append(Clef(*c))
+                clef = Clef(*c)
+            self.clef.append(clef)
+
         assert barline is None or isinstance(barline, str) \
                and barline.lower() in Measure._barline_xml_names, "Barline type not understood"
         self.barline = barline
@@ -1806,9 +1811,14 @@ class Measure(MusicXMLComponent, MusicXMLContainer):
             staves_el.text = str(self.staves)
 
         if self.clef is not None:
-            for clef in self.clef:
+            for idx, clef in enumerate(self.clef):
                 if clef is not None:
-                    attributes_el.extend(clef.render())
+                    if len(self.clef) == 0:
+                      attributes_el.extend(clef.render())
+                    else:
+                      clef_copy = deepcopy(clef)
+                      clef_copy.number = idx + 1
+                      attributes_el.extend(clef_copy.render())
 
         amount_to_backup = 0
         for i, voice in enumerate(self.voices):
