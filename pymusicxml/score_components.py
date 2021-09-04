@@ -818,6 +818,7 @@ class Note(_XMLNote):
         :class:`MetronomeMark`) to populate the musicXML "directions" tag.
     :param stemless: boolean for whether to render the note with no stem.
     :param velocity: a note velocity (0-127) which gets passed along and used for playback by many applications
+    :param staff: defines the staff for this note, primarily when a part has multiple staves (Piano)
     """
 
     def __init__(self, pitch: Union[Pitch, str], duration: Union[Duration, str, float], ties: str = None,
