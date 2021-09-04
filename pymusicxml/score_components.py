@@ -1383,6 +1383,7 @@ class Clef(MusicXMLComponent):
     :param sign: Whether it is a G, F, or C clef
     :param line: Which line the clef is centered on
     :param octaves_transposition: How many octaves up or down the clef transposes
+    :param number: Which number for corresponding staff
     """
 
     #: Dictionary mapping standard clef names to tuple of (clef letter type, clef line)
@@ -1396,13 +1397,14 @@ class Clef(MusicXMLComponent):
         "baritone": ("F", 3)
     }
 
-    def __init__(self, sign: str, line: int, octaves_transposition: int = 0):
+    def __init__(self, sign: str, line: int, octaves_transposition: int = 0, number: int = None):
         sign = sign.upper()
         if sign not in ("C", "G", "F"):
             raise ValueError("Clef sign not understood; must be \"C\", \"G\", or \"F\".")
         self.sign = sign
         self.line = str(line)
         self.octaves_transposition = octaves_transposition
+        self.number = number
 
     @classmethod
     def from_string(cls, clef_string: str, octaves_transposition: int = 0):
@@ -1418,7 +1420,10 @@ class Clef(MusicXMLComponent):
             raise ValueError("Clef name not understood.")
 
     def render(self) -> Sequence[ElementTree.Element]:
-        clef_element = ElementTree.Element("clef")
+        props = {}
+        if self.number is not None:
+            props['number'] = self.number
+        clef_element = ElementTree.Element("clef", props)
         ElementTree.SubElement(clef_element, "sign").text = self.sign
         ElementTree.SubElement(clef_element, "line").text = self.line
         if self.octaves_transposition != 0:
@@ -1589,7 +1594,8 @@ class Measure(MusicXMLComponent, MusicXMLContainer):
         number of sharps (or flats if negative), or a string to be parsed into a key signature, such as "G major",
         "F# lydian", etc.
     :param clef: either None (for no clef), a Clef object, a string (like "treble"), or a tuple like ("G", 2) to
-        represent the clef letter, the line it lands, and an optional octave transposition as the third parameter
+        represent the clef letter, the line it lands, and an optional octave transposition as the third parameter, or
+        a list of the previous to define the clef per staff for parts with multiple staves
     :param barline: either None, which means there will be a regular barline, "double", "end", or any of the barline
         names used in the MusicXML standard.
     :param staves: for multi-part music, like piano music
@@ -1617,7 +1623,7 @@ class Measure(MusicXMLComponent, MusicXMLContainer):
 
     def __init__(self, contents: Union[Sequence[DurationalObject], Sequence[Sequence[DurationalObject]]] = None,
                  time_signature: Tuple = None, key: Union[KeySignature, str, int] = None,
-                 clef: Union[Clef, str, Tuple] = None, barline: str = None,
+                 clef: Union[Clef, str, Tuple, Sequence[Union[Clef, str, Tuple]]] = None, barline: str = None,
                  staves: str = None, number: int = 1,
                  directions_with_displacements: Sequence[Tuple['Direction', float]] = ()):
         super().__init__(contents=contents, allowed_types=(Note, Rest, Chord, BarRest, BeamedGroup,
@@ -1631,10 +1637,16 @@ class Measure(MusicXMLComponent, MusicXMLContainer):
         self.number = number
         self.time_signature = time_signature
         self.key = key
-        assert isinstance(clef, (type(None), Clef, str, tuple)), "Clef not understood."
-        self.clef = clef if isinstance(clef, (type(None), Clef)) \
-            else Clef.from_string(clef) if isinstance(clef, str) \
-            else Clef(*clef)
+        assert isinstance(clef, (type(None), Clef, str, tuple, Sequence)), "Clef not understood."
+        clefs = [clef] if not isinstance(clef, list) else clef
+        self.clef = []
+        for c in clefs:
+            if isinstance(c, (type(None), Clef)):
+                self.clef.append(c)
+            elif isinstance(c, str):
+                self.clef.append(Clef.from_string(c))
+            else:
+                self.clef.append(Clef(*c))
         assert barline is None or isinstance(barline, str) \
                and barline.lower() in Measure._barline_xml_names, "Barline type not understood"
         self.barline = barline
@@ -1788,12 +1800,15 @@ class Measure(MusicXMLComponent, MusicXMLContainer):
             ElementTree.SubElement(time_el, "beats").text = str(self.time_signature[0])
             ElementTree.SubElement(time_el, "beat-type").text = str(self.time_signature[1])
 
-        if self.clef is not None:
-            attributes_el.extend(self.clef.render())
-
+        # At least in musescore, staves must come before clef if there are multiple
         if self.staves is not None:
             staves_el = ElementTree.SubElement(attributes_el, "staves")
             staves_el.text = str(self.staves)
+
+        if self.clef is not None:
+            for clef in self.clef:
+                if clef is not None:
+                    attributes_el.extend(clef.render())
 
         amount_to_backup = 0
         for i, voice in enumerate(self.voices):
